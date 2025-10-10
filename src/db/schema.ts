@@ -8,7 +8,9 @@ import {
   integer,
 } from 'drizzle-orm/pg-core'
 import { relations } from 'drizzle-orm'
+import { createInsertSchema, createSelectSchema } from 'drizzle-zod'
 
+// ------------------ TABLES ------------------
 export const users = pgTable('users', {
   id: uuid('id').primaryKey().defaultRandom(),
   email: varchar('email', { length: 255 }).notNull().unique(),
@@ -37,9 +39,7 @@ export const habits = pgTable('habits', {
 export const entries = pgTable('entries', {
   id: uuid('id').primaryKey().defaultRandom(),
   habitId: uuid('habit_id')
-    .references(() => habits.id, {
-      onDelete: 'cascade',
-    })
+    .references(() => habits.id, { onDelete: 'cascade' })
     .notNull(),
   completionDate: timestamp('completion_date').defaultNow().notNull(),
   note: text('note'),
@@ -56,9 +56,63 @@ export const tags = pgTable('tags', {
 
 export const habitTags = pgTable('habitTags', {
   id: uuid('id').primaryKey().defaultRandom(),
+  habitId: uuid('habit_id')
+    .references(() => habits.id, { onDelete: 'cascade' })
+    .notNull(),
   tagId: uuid('tag_id')
-    .references(() => tags.id, {
-      onDelete: 'cascade',
-    })
+    .references(() => tags.id, { onDelete: 'cascade' })
     .notNull(),
 })
+
+// ------------------ RELATIONS ------------------
+export const userRelations = relations(users, ({ many }) => ({
+  habits: many(habits),
+}))
+
+export const habitsRelations = relations(habits, ({ one, many }) => ({
+  user: one(users, {
+    fields: [habits.userId],
+    references: [users.id],
+  }),
+  entries: many(entries),
+  habitTags: many(habitTags),
+}))
+
+export const entriesRelations = relations(entries, ({ one }) => ({
+  habit: one(habits, {
+    fields: [entries.habitId],
+    references: [habits.id],
+  }),
+}))
+
+export const tagsRelations = relations(tags, ({ many }) => ({
+  habitTags: many(habitTags),
+}))
+
+export const habitTagsRelations = relations(habitTags, ({ one }) => ({
+  habit: one(habits, {
+    fields: [habitTags.habitId], // fixed: was incorrectly using tagId
+    references: [habits.id],
+  }),
+  tag: one(tags, {
+    fields: [habitTags.tagId],
+    references: [tags.id],
+  }),
+}))
+
+export type User = typeof users.$inferSelect
+export type Habit = typeof habits.$inferSelect
+export type Entry = typeof entries.$inferSelect
+export type Tag = typeof tags.$inferSelect
+export type HabitTag = typeof habitTags.$inferSelect
+
+export const insertUserSchema = createInsertSchema(users)
+export const selectUserSchema = createSelectSchema(users)
+export const insertHabitSchema = createInsertSchema(habits)
+export const selectHabitSchema = createSelectSchema(habits)
+export const insertEntrySchema = createInsertSchema(entries)
+export const selectEntrySchema = createSelectSchema(entries)
+export const insertTagSchema = createInsertSchema(tags)
+export const selectTagSchema = createSelectSchema(tags)
+export const insertHabitTagSchema = createInsertSchema(habitTags)
+export const selectHabitTagSchema = createSelectSchema(habitTags)
